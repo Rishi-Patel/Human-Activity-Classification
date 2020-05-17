@@ -1,5 +1,5 @@
 import numpy as np
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 from tqdm import tqdm # Displays a progress bar
 
 import torch
@@ -17,7 +17,7 @@ from sklearn.model_selection import KFold, StratifiedKFold,ShuffleSplit ,train_t
 
 from sklearn.metrics import confusion_matrix, classification_report
 
-from PIL import Image
+#from PIL import Image
 
 
 import copy
@@ -44,13 +44,13 @@ def run_classifier(mode='bilateral',classifier='CNN',sensor=["imu","emg","goin"]
 	LEARNING_RATE = 1e-5
 	WEIGHT_DECAY = 1e-3
 	NUMB_CLASS = 5
-	NUB_EPOCH= 200
-	numfolds = 10
+	NUB_EPOCH= 1
+	numfolds = 6
 	DATA_LOAD_BOOL = True
 	BAND=10
 	HOP=10
 	# BAND=16,HOP=27
-	SAVING_BOOL = True
+	SAVING_BOOL = False
 	############################################
 
 
@@ -87,7 +87,9 @@ def run_classifier(mode='bilateral',classifier='CNN',sensor=["imu","emg","goin"]
 
 		# Load the dataset and train, val, test splits
 		print("Loading datasets...")
-		BIO_train= EnableDataset(subject_list= ['156','185','186','188','189','190', '191', '192', '193', '194'],data_range=(1, 51),bands=BAND,hop_length=HOP,model_type=CLASSIFIER,sensors=SENSOR,mode=MODE)
+		#BIO_train= EnableDataset(subject_list= ['156','185','186','188','189','190', '191', '192', '193', '194'],data_range=(1, 51),bands=BAND,hop_length=HOP,model_type=CLASSIFIER,sensors=SENSOR,mode=MODE)
+		BIO_train= EnableDataset(subject_list= ['156'],data_range=(1, 51),bands=BAND,hop_length=HOP,model_type=CLASSIFIER,sensors=SENSOR,mode=MODE)
+		spectrogramTime += BIO_train.spectrogramTime
 		spectrogramTime += BIO_train.spectrogramTime
 		save_object(BIO_train,SAVE_NAME)
 	with open(SAVE_NAME, 'rb') as input:
@@ -144,23 +146,32 @@ def run_classifier(mode='bilateral',classifier='CNN',sensor=["imu","emg","goin"]
 	tests=[]
 	preds=[]
 	inferenceTime = 0.0
-	for train_index, test_index in skf.split(X, y, types):
+	inf_times = []
+
+    
+
+	train_size = int(0.9* len(BIO_train))
+	test_size = int((len(BIO_train) - train_size))
+	train_dataset, test_dataset = torch.utils.data.random_split(BIO_train, [train_size,test_size])
+	#for train_index, test_index in skf.split(X, y, types):
+
+	for j in range(0,11):
 
 		model.load_state_dict(init_state)
 		optimizer.load_state_dict(init_state_opt)
 
-		X_train, X_test = X[train_index], X[test_index]
-		y_train, y_test = y[train_index], y[test_index]
-		types_train, types_test = types[train_index], types[test_index]
+#		X_train, X_test = X[train_index], X[test_index]
+#		y_train, y_test = y[train_index], y[test_index]
+#		types_train, types_test = types[train_index], types[test_index]
 
-		train_dataset = TensorDataset( X_train, y_train, types_train)
-		test_dataset = TensorDataset( X_test, y_test, types_test)
+#		train_dataset = TensorDataset( X_train, y_train, types_train)
+#		test_dataset = TensorDataset( X_test, y_test, types_test)
 
-		trainloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
+#		trainloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
 		testloader = DataLoader(test_dataset, batch_size=BATCH_SIZE)
 
 		print("######################Fold:{}#####################".format(i+1))
-		train_class.train(trainloader,num_epoch)
+#		train_class.train(trainloader,num_epoch)
 
 		model.load_state_dict(torch.load(MODEL_NAME))
 
@@ -178,14 +189,22 @@ def run_classifier(mode='bilateral',classifier='CNN',sensor=["imu","emg","goin"]
 		class_acc_list.append(class_acc)
 
 		inferenceTime += inf_time
-
+		print(inf_time/len(pred))
+		inf_times.append(inf_time/len(pred))
 		i +=1
 
 	print('saved on the results')
 
+	print(np.mean(inf_times[1:]),np.std(inf_times[1:]))
+
+
+
+
 
 	# model.load_state_dict(torch.load('./models/bestmodel_BATCH_SIZE32_LR1e-05_WD0.001_EPOCH200_BAND10_HOP10.pth', map_location='cpu'))
-	inferenceTime = inferenceTime/len(preds)
+#	inferenceTime = inferenceTime/len(preds)
+
+	inferenceTime =  np.mean(inf_times[1:])
 	print('writing...')
 	with open(RESULT_NAME, 'w') as f:
 		f.write('total ')
@@ -200,11 +219,11 @@ def run_classifier(mode='bilateral',classifier='CNN',sensor=["imu","emg","goin"]
 		for item in tr_accuracies:
 			f.write("%s " % item)
 
-		for j in range(0,5):
-			f.write('\n')
-			f.write('class {} '.format(j))
-			for m in range(0,numfolds):
-				f.write("%s " % class_acc_list[m][j])
+#		for j in range(0,5):
+#			f.write('\n')
+#			f.write('class {} '.format(j))
+#			for m in range(0,numfolds):
+#				f.write("%s " % class_acc_list[m][j])
 		f.write('\n')
 
 		f.write('spectrogram time %s' % spectrogramTime)
